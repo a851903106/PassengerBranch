@@ -1,38 +1,6 @@
 #include "Body.h"
 #include <Helpers/Macro.h>
 
-// Bugfix: TAction 7,80,107.
-DEFINE_HOOK(0x65DF81, TeamTypeClass_CreateMembers_LoadOntoTransport, 0x7)
-{
-	GET(FootClass* const, pPayload, EAX);
-	GET(FootClass* const, pTransport, ESI);
-	GET(TeamClass* const, pTeam, EBP);
-
-	const bool isTransportOpenTopped = pTransport->GetTechnoType()->OpenTopped;
-	FootClass* pGunner = nullptr;
-
-	for (auto pNext = pPayload;
-		pNext && pNext != pTransport && pNext->Team == pTeam;
-		pNext = abstract_cast<FootClass*>(pNext->NextObject))
-	{
-		pPayload->Transporter = pTransport;
-		pGunner = pNext;
-
-		if (isTransportOpenTopped)
-			pTransport->EnteredOpenTopped(pNext);
-	}
-
-	// Add to transport - this will load the payload object and everything linked to it (rest of the team) in reverse order
-	pTransport->AddPassenger(pPayload);
-
-	// Handle gunner change - this is the 'last' passenger because of reverse order
-	if (pTransport->GetTechnoType()->Gunner && pGunner)
-		pTransport->ReceiveGunner(pGunner);
-
-	// Ares' CreateInitialPayload doesn't work here
-	return 0x65DF8D;
-}
-
 void _fastcall PayloadFix(FootClass* pThis)
 {
 	if (!pThis ||
@@ -92,26 +60,35 @@ void _fastcall PayloadFix(FootClass* pThis)
 	}
 }
 
-DEFINE_HOOK_AGAIN(0x65D9DA, TeamTypeClass_CreateTeam_InitialPayload, 0x6)
-DEFINE_HOOK(0x65ED10, TeamTypeClass_CreateTeam_InitialPayload, 0x6)
+DEFINE_HOOK(0x65D995, TeamTypeClass_CreateInstance_InitialPayload, 0x6)
 {
-	FootClass* pThis = nullptr;
-
-	if (R->Origin() == 0x65D9DA)
-	{
-		GET(FootClass*, pTeam, EBP);
-		pThis = pTeam;
-	}
-	else
-	{
-		GET(FootClass*, pTeam, EDI);
-		pThis = pTeam;
-	}
+	GET(FootClass*, pThis, EBP);
+	enum { SkipGameCode = 0x65DD1B, Continue = 0x65D9A9 };
 
 	for (FootClass* pFoot = pThis; pFoot; pFoot = abstract_cast<FootClass*>(pFoot->NextObject))
 	{
 		PayloadFix(pFoot);
 	}
 
-	return 0;
+	if (pThis && pThis->Team)
+		pThis->Team->IsTransient = false;
+
+	R->Stack(STACK_OFFSET(0x30, -0x18), pThis);
+	return !pThis ? SkipGameCode : Continue;
+}
+
+DEFINE_HOOK(0x65ECD2, TeamTypeClass_CreateTeamChrono_Fix, 0x6)
+{
+	GET(FootClass*, pThis, EDI);
+	enum { SkipGameCode = 0x65F301, Continue = 0x65ECE2 };
+
+	for (FootClass* pFoot = pThis; pFoot; pFoot = abstract_cast<FootClass*>(pFoot->NextObject))
+	{
+		PayloadFix(pFoot);
+	}
+
+	if (pThis && pThis->Team)
+		pThis->Team->IsTransient = false;
+
+	return !pThis ? SkipGameCode : Continue;
 }
