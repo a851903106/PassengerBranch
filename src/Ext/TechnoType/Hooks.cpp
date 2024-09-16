@@ -3,7 +3,7 @@
 
 #include <BulletClass.h>
 
-DEFINE_HOOK(0x46943F, TechnoClass_Init_NewEntities, 0x6)
+DEFINE_HOOK(0x46943F, BulletClass_Detonate_TemporalFix, 0x6)
 {
 	GET(BulletClass*, pThis, ESI);
 	if (!pThis)
